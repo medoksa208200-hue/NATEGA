@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة رفع النتيجة - إدارة</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#12210f;
+    --paper:#f6f3ea;
+    --green:#0e5c3b;
+    --green-dark:#093d27;
+    --gold:#c9962c;
+    --red:#a3271e;
+    --line: rgba(18,33,15,0.15);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Tahoma','Segoe UI',sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  header{
+    width:100%;
+    background:linear-gradient(180deg,var(--green) 0%, var(--green-dark) 100%);
+    color:#f6f3ea;
+    text-align:center;
+    padding:36px 16px 44px;
+    position:relative;
+    overflow:hidden;
+  }
+  header::after{
+    content:"";
+    position:absolute;
+    bottom:0; left:0; right:0;
+    height:6px;
+    background:repeating-linear-gradient(90deg, var(--gold) 0 24px, transparent 24px 48px);
+  }
+  header h1{
+    margin:0 0 6px;
+    font-size:28px;
+    letter-spacing:1px;
+  }
+  header p{
+    margin:0;
+    opacity:0.85;
+    font-size:14px;
+  }
+  main{
+    width:100%;
+    max-width:520px;
+    padding:0 16px;
+    margin-top:-26px;
+  }
+  .card{
+    background:#fff;
+    border-radius:14px;
+    box-shadow:0 12px 30px rgba(9,61,39,0.15);
+    padding:24px;
+    margin-bottom:20px;
+    border:1px solid var(--line);
+  }
+  .card h2{
+    font-size:16px;
+    margin:0 0 14px;
+    color:var(--green-dark);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .search-row{
+    display:flex;
+    gap:8px;
+  }
+  input[type=text]{
+    flex:1;
+    padding:14px 16px;
+    border-radius:10px;
+    border:2px solid var(--line);
+    font-size:18px;
+    text-align:center;
+    letter-spacing:1px;
+    font-family:inherit;
+  }
+  input[type=text]:focus{
+    outline:none;
+    border-color:var(--green);
+  }
+  button{
+    font-family:inherit;
+    cursor:pointer;
+    border:none;
+  }
+  .btn-search{
+    background:var(--green);
+    color:#fff;
+    padding:14px 22px;
+    border-radius:10px;
+    font-size:16px;
+    font-weight:bold;
+  }
+  .btn-search:active{background:var(--green-dark);}
+  .upload-box{
+    border:2px dashed var(--line);
+    border-radius:10px;
+    padding:18px;
+    text-align:center;
+    color:#555;
+    font-size:14px;
+  }
+  .upload-box input{display:none;}
+  .upload-label{
+    display:inline-block;
+    background:var(--gold);
+    color:#fff;
+    padding:10px 18px;
+    border-radius:8px;
+    font-size:14px;
+    font-weight:bold;
+    cursor:pointer;
+    margin-top:8px;
+  }
+  .status{
+    margin-top:10px;
+    font-size:13px;
+    color:var(--green-dark);
+  }
+  .result{
+    display:none;
+  }
+  .result.show{display:block;}
+  .result-header{
+    text-align:center;
+    padding-bottom:14px;
+    margin-bottom:14px;
+    border-bottom:2px solid var(--line);
+  }
+  .result-header .name{
+    font-size:20px;
+    font-weight:bold;
+    color:var(--green-dark);
+  }
+  .result-header .seat{
+    font-size:13px;
+    color:#777;
+    margin-top:4px;
+  }
+  .status-badge{
+    display:inline-block;
+    padding:6px 16px;
+    border-radius:20px;
+    font-size:13px;
+    font-weight:bold;
+    margin-top:8px;
+  }
+  .status-badge.pass{background:#e3f3e9;color:var(--green-dark);}
+  .status-badge.fail{background:#fbe7e5;color:var(--red);}
+  .fields{
+    display:grid;
+    gap:8px;
+  }
+  .field-row{
+    display:flex;
+    justify-content:space-between;
+    padding:10px 12px;
+    background:#faf8f2;
+    border-radius:8px;
+    font-size:14px;
+  }
+  .field-row .label{color:#666;}
+  .field-row .value{font-weight:bold;color:var(--ink);}
+  .not-found{
+    display:none;
+    text-align:center;
+    color:var(--red);
+    font-size:14px;
+    padding:10px 0 0;
+  }
+  .not-found.show{display:block;}
+  footer{
+    text-align:center;
+    font-size:12px;
+    color:#999;
+    padding:20px;
+  }
+  .spinner{
+    display:inline-block;
+    width:14px;height:14px;
+    border:2px solid var(--line);
+    border-top-color:var(--green);
+    border-radius:50%;
+    animation:spin 0.7s linear infinite;
+    vertical-align:middle;
+    margin-left:6px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>لوحة الإدارة</h1>
+  <p>رفع ملف نتيجة الثانوية العامة</p>
+</header>
+
+<main>
+  <div class="card">
+    <h2>📤 رفع ملف النتيجة</h2>
+    <div class="upload-box">
+      <div>ارفع ملف Excel أو CSV فيه بيانات الطلاب (لازم يكون فيه عمود رقم الجلوس وعمود الاسم)</div>
+      <label class="upload-label" for="fileInput">اختيار ملف</label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+      <div class="status" id="uploadStatus"></div>
+    </div>
+  </div>
+
+</main>
+
+<footer>البيانات بتتخزن على السيرفر ومتاحة لأي حد يفتح الرابط</footer>
+
+<script>
+const SUPABASE_URL = 'https://npgzrltfxxvcufrdizgs.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_qnyOKYsymh-ZAByDV0FVTg_cGIOaGnA';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// خريطة أعمدة الملف على أعمدة الجدول
+const COLUMN_MAP = {
+  seating_no: ['seating_no','رقم الجلوس','رقم جلوس'],
+  arabic_name: ['arabic_name','الاسم','اسم الطالب'],
+  total_degree: ['total_degree','المجموع','مجموع الدرجات'],
+  student_case_desc: ['student_case_desc','الحالة','حالة الطالب']
+};
+
+function mapHeaders(headers){
+  const map = {};
+  Object.keys(COLUMN_MAP).forEach(target => {
+    const candidates = COLUMN_MAP[target].map(c => c.replace(/\s/g,''));
+    map[target] = headers.find(h => candidates.includes(h.replace(/\s/g,''))) || null;
+  });
+  return map;
+}
+
+const CHUNK_SIZE = 500;
+
+document.getElementById('fileInput').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('uploadStatus');
+  statusEl.innerHTML = 'جاري قراءة الملف... <span class="spinner"></span>';
+
+  const reader = new FileReader();
+  reader.onload = async function(evt){
+    let rows;
+    try{
+      const data = new Uint8Array(evt.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      if(rows.length === 0){
+        statusEl.textContent = 'الملف فاضي';
+        return;
+      }
+    }catch(err){
+      statusEl.textContent = 'حصل خطأ في قراءة الملف، تأكد من الصيغة';
+      return;
+    }
+
+    const headerMap = mapHeaders(Object.keys(rows[0]));
+    if(!headerMap.seating_no || !headerMap.arabic_name){
+      statusEl.textContent = 'مش لاقي عمود رقم الجلوس أو الاسم في الملف';
+      return;
+    }
+
+    const records = rows.map(r => ({
+      seating_no: parseInt(String(r[headerMap.seating_no]).trim(), 10),
+      arabic_name: String(r[headerMap.arabic_name]).trim(),
+      total_degree: headerMap.total_degree ? parseFloat(r[headerMap.total_degree]) : null,
+      student_case_desc: headerMap.student_case_desc ? String(r[headerMap.student_case_desc]).trim() : null
+    })).filter(r => !isNaN(r.seating_no));
+
+    const total = records.length;
+    let uploaded = 0;
+    let failed = 0;
+
+    for(let i = 0; i < total; i += CHUNK_SIZE){
+      const chunk = records.slice(i, i + CHUNK_SIZE);
+      const { error } = await sb.from('natega_results').upsert(chunk, { onConflict: 'seating_no' });
+      if(error){
+        failed += chunk.length;
+        console.error('خطأ في الدفعة', i, error);
+      }else{
+        uploaded += chunk.length;
+      }
+      const pct = Math.round(((i + chunk.length) / total) * 100);
+      statusEl.innerHTML = `جاري الرفع... ${pct}% (${uploaded + failed}/${total}) <span class="spinner"></span>`;
+    }
+
+    if(failed === 0){
+      statusEl.textContent = `تم رفع ${uploaded} نتيجة بنجاح ✓`;
+    }else{
+      statusEl.textContent = `تم رفع ${uploaded} نتيجة، وفشل رفع ${failed}. جرب ترفع الملف تاني.`;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+</script>
+</body>
+</html>
